@@ -1,6 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2.DocumentModel;
 using Amazon.DynamoDBv2.Model;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,35 +14,46 @@ namespace dynamodb_test.Controllers
     public class MoviesController : ControllerBase
     {
         private const string TableName = "Movies";
-        private readonly IAmazonDynamoDB dynamoDb;
+        private readonly DynamoDBContext dynamoDbContext;
 
         public MoviesController(IAmazonDynamoDB dynamoDb)
         {
-            this.dynamoDb = dynamoDb;
+            this.dynamoDbContext = new DynamoDBContext(dynamoDb);
         }
 
-        [HttpGet("{year}")]
-        public async Task<ActionResult<string>> Get(int year)
+        [HttpGet]
+        public async Task<ActionResult<Movie>> Get(int year, string title)
         {
-            // number of keys must match that created in the table
-            var key = new Dictionary<string, AttributeValue>
+            var movie = new Movie()
             {
-                { "year", new AttributeValue { N = year.ToString() } },
-                { "title", new AttributeValue { S = "Turn It Down, Or Else!" } }
+                Year = year,
+                Title = title
             };
 
-            var request = new GetItemRequest
+            var response = await dynamoDbContext.LoadAsync<Movie>(movie);
+
+            if (response == null)
             {
-                TableName = TableName,
-                Key = key
-            };
+                return NotFound($"No movie with year: {year} and title: {title}");
+            }
 
-            var response = await dynamoDb.GetItemAsync(request);
+            return response;
+        }
+    }
 
-            if (!response.IsItemSet)
-                return NotFound();
+    [DynamoDBTable("Movies", LowerCamelCaseProperties = true)]
+    public class Movie
+    {
+        [DynamoDBHashKey]
+        public int Year
+        {
+            get; set;
+        }
 
-            return response.Item["info"].M["actors"].L[0].S;
+        [DynamoDBRangeKey]
+        public string Title
+        {
+            get; set;
         }
     }
 }
