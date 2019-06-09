@@ -1,10 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using Amazon.DynamoDBv2;
-using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
-using Amazon.DynamoDBv2.Model;
 using Microsoft.AspNetCore.Mvc;
 
 namespace dynamodb_test.Controllers
@@ -14,46 +10,48 @@ namespace dynamodb_test.Controllers
     public class MoviesController : ControllerBase
     {
         private const string TableName = "Movies";
-        private readonly DynamoDBContext dynamoDbContext;
+        private readonly IAmazonDynamoDB dynamoDb;
 
         public MoviesController(IAmazonDynamoDB dynamoDb)
         {
-            this.dynamoDbContext = new DynamoDBContext(dynamoDb);
+            this.dynamoDb = dynamoDb;
         }
 
         [HttpGet]
-        public async Task<ActionResult<Movie>> Get(int year, string title)
+        public async Task<ActionResult<string>> Get(int year, string title)
         {
-            var movie = new Movie()
+            Table table = Table.LoadTable(dynamoDb, TableName);
+            var document = await table.GetItemAsync(year, title);
+
+            return document.ToJsonPretty();
+        }
+
+        [HttpPut]
+        public async Task<ActionResult<string>> Put(int year, string title)
+        {
+            Table table = Table.LoadTable(dynamoDb, TableName);
+
+            var movie = new Document();
+            movie["year"] = year;
+            movie["title"] = title;
+
+            var movieInfo = new Document();
+            movieInfo["rating"] = 1;
+
+            // if you had a more nested structure,
+            // how would you only update a single item in the nested object?
+            movie["info"] = movieInfo;
+
+            // Optional parameters.
+            UpdateItemOperationConfig config = new UpdateItemOperationConfig
             {
-                Year = year,
-                Title = title
+                // Get updated item in response.
+                ReturnValues = ReturnValues.AllNewAttributes
             };
 
-            var response = await dynamoDbContext.LoadAsync<Movie>(movie);
+            var document = await table.UpdateItemAsync(movie, config);
 
-            if (response == null)
-            {
-                return NotFound($"No movie with year: {year} and title: {title}");
-            }
-
-            return response;
-        }
-    }
-
-    [DynamoDBTable("Movies", LowerCamelCaseProperties = true)]
-    public class Movie
-    {
-        [DynamoDBHashKey]
-        public int Year
-        {
-            get; set;
-        }
-
-        [DynamoDBRangeKey]
-        public string Title
-        {
-            get; set;
+            return document.ToJsonPretty();
         }
     }
 }
