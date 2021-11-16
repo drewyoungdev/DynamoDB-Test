@@ -1,6 +1,6 @@
 {
     "dependencies": {
-        "aws-sdk": ">= 2.0.9",
+        "aws-sdk": ">= 2.814.0",
         "dynamodb-admin": "^3.2.0",
         "file-system": "^2.2.2"
     }
